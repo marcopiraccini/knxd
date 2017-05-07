@@ -20,59 +20,23 @@
 #ifndef EIB_EMI1_H
 #define EIB_EMI1_H
 
-#include "layer2.h"
-#include "lowlevel.h"
+#include "emi_common.h"
 
 /** EMI1 backend */
-class EMI1Layer2Interface:public Layer2Interface, private Thread
+class EMI1Driver:public EMI_Common
 {
-  /** driver to send/receive */
-  LowLevelDriverInterface *iface;
-  /** debug output */
-  Trace *t;
-  /** state */
-  int mode;
-  /** default address */
-  eibaddr_t def;
-  /** vbusmonitor */
-  int vmode;
-  /** semaphore for outqueue */
-  pth_sem_t out_signal;
-  /** semaphore for inqueue */
-  pth_sem_t in_signal;
-  /** output queue */
-  Queue < LPDU * >outqueue;
-  /** input queue */
-  Queue < LPDU * >inqueue;
-  /** event for outqueue*/
-  pth_event_t getwait;
-  bool noqueue;
-  int sendmode;
-
-  void Send (LPDU * l);
-  void Run (pth_sem_t * stop);
+  void cmdEnterMonitor();
+  void cmdLeaveMonitor();
+  void cmdOpen();
+  void cmdClose();
+  const uint8_t * getIndTypes();
+  EMIVer getVersion() { return vEMI1; }
+  void sendLocal_done_cb(bool success);
+  enum { N_bad, N_up, N_want_close, N_down, N_open } sendLocal_done_next = N_bad;
+  void do_send_Next();
 public:
-  EMI1Layer2Interface (LowLevelDriverInterface * i, Trace * tr, int flags);
-  ~EMI1Layer2Interface ();
-  bool init ();
-
-  void Send_L_Data (LPDU * l);
-  LPDU *Get_L_Data (pth_event_t stop);
-
-  bool addAddress (eibaddr_t addr);
-  bool addGroupAddress (eibaddr_t addr);
-  bool removeAddress (eibaddr_t addr);
-  bool removeGroupAddress (eibaddr_t addr);
-
-  bool enterBusmonitor ();
-  bool leaveBusmonitor ();
-  bool openVBusmonitor ();
-  bool closeVBusmonitor ();
-
-  bool Open ();
-  bool Close ();
-  bool Connection_Lost ();
-  bool Send_Queue_Empty ();
+  EMI1Driver (LowLevelIface* c, IniSectionPtr& s, LowLevelDriver *i = nullptr);
+  virtual ~EMI1Driver ();
 };
 
 #endif

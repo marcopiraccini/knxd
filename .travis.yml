@@ -1,22 +1,25 @@
 language: cpp
-install:
-  - wget "https://www.auto.tuwien.ac.at/~mkoegler/pth/pthsem_2.0.8.tar.gz"
-  - tar xvfz pthsem_2.0.8.tar.gz
-  - cd "pthsem-2.0.8"
-  - ./configure
-  - make
-  - sudo make install
-  - cd ..
+compiler: gcc
+dist: trusty
 script:
-  - libtoolize --copy --force --install
-  - aclocal -I m4 --force
-  - autoheader
-  - automake --add-missing --copy --force-missing
-  - autoconf
-  - env CFLAGS="-Wall -Wextra" CPPFLAGS="-Wall -Wextra" ./configure --without-pth-test
+  - sh -x bootstrap.sh
+  - env CFLAGS="-Wall -Wextra -Wno-reorder" CPPFLAGS="-Wall -Wextra -Wno-reorder" ./configure --disable-systemd
   - make
+  - sh tools/test.sh
 notifications:
   email:
     on_success: change
     on_failure: always
-
+sudo: false
+install:
+  - if [ "$CXX" = "g++" ]; then export CXX="g++-5" CC="gcc-5"; fi
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-5
+    - g++-5
+    - libev-dev
+    - libusb-1.0-0-dev
+    - strace

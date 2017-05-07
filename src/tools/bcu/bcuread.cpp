@@ -23,6 +23,7 @@
 #include <argp.h>
 #include "addrtab.h"
 #include "lowlevelconf.h"
+#include "version.h"
 
 /** aborts program with a printf like message */
 void
@@ -44,23 +45,19 @@ struct urldef
   const char *prefix;
   /** factory function */
   LowLevel_Create_Func Create;
-  /** cleanup function */
-  void (*Cleanup) ();
 };
 
 /** list of URLs */
 struct urldef URLs[] = {
 #undef L2_NAME
-#define L2_NAME(a) { a##_PREFIX, a##_CREATE, a##_CLEANUP },
+#define L2_NAME(a) { a##_PREFIX, a##_CREATE },
 #include "lowlevelcreate.h"
-  {0, 0, 0}
+  {0, 0}
 };
 
-void (*Cleanup) ();
-
 /** determines the right backend for the url and creates it */
-LowLevelDriverInterface *
-Create (const char *url, Trace * t)
+LowLevelDriver *
+Create (const char *url, TracePtr t)
 {
   unsigned int p = 0;
   struct urldef *u = URLs;
@@ -71,10 +68,7 @@ Create (const char *url, Trace * t)
   while (u->prefix)
     {
       if (strlen (u->prefix) == p && !memcmp (u->prefix, url, p))
-	{
-	  Cleanup = u->Cleanup;
-	  return u->Create (url + p + 1, t);
-	}
+	return u->Create (url + p + 1, t);
       u++;
     }
   die ("url not supported");
@@ -82,7 +76,7 @@ Create (const char *url, Trace * t)
 }
 
 /** version */
-const char *argp_program_version = "bcuread " VERSION;
+const char *argp_program_version = "bcuread " REAL_VERSION;
 /** documentation */
 static char doc[] =
   "bcuread -- read BCU memory\n"
@@ -152,7 +146,7 @@ main (int ac, char *ag[])
   int len;
   int index;
   CArray result;
-  LowLevelDriverInterface *iface = 0;
+  LowLevelDriver *iface = 0;
   memset (&arg, 0, sizeof (arg));
 
   argp_parse (&argp, ac, ag, 0, &index, &arg);
@@ -164,10 +158,10 @@ main (int ac, char *ag[])
   signal (SIGPIPE, SIG_IGN);
   pth_init ();
 
-  Trace t;
+  Trace t = Trace("main");
   t.SetTraceLevel (arg.tracelevel);
 
-  iface = Create (ag[index], &t);
+  iface = Create (ag[index], TracePtr(new Trace(t, ag[index])));
   if (!iface)
     die ("initialisation failed");
   if (!iface->init ())
@@ -183,14 +177,12 @@ main (int ac, char *ag[])
     }
   else
     {
-      for (int i = 0; i < result (); i++)
-	printf ("%02x ", result[i]);
+      ITER(i,result)
+	printf ("%02x ", *i);
       printf ("\n");
     }
 
   delete iface;
-  if (Cleanup)
-    Cleanup ();
 
   pth_exit (0);
   return 0;

@@ -21,33 +21,49 @@
 #define SERVER_H
 
 #include "common.h"
-#include "layer3.h"
+#include "link.h"
+#include "router.h"
 
 class ClientConnection;
-/** implements the frontend (but opens no connection) */
-class Server:protected Thread
-{
-  /** Layer 3 interface */
-  Layer3 *l3;
-  /** open client connections*/
-  Array < ClientConnection * >connections;
+typedef std::shared_ptr<ClientConnection> ClientConnPtr;
 
-  void Run (pth_sem_t * stop);
+/** implements the frontend (but opens no connection) */
+class NetServer: public Server
+{
+  friend class ClientConnection;
 protected:
-  /** debug output */
-  Trace * t;
+  NetServer (BaseRouter& l3, IniSectionPtr& s);
+public:
+  virtual ~NetServer ();
+  bool ignore_when_systemd = false;
+
+private:
+  ev::io io; void io_cb (ev::io &w, int revents);
+
+  /** open client connections*/
+  Array < ClientConnPtr > connections;
+
+  ev::async cleanup;
+  void cleanup_cb (ev::async &w, int revents);
+
+  /** to-be-closed client connections*/
+  Queue < ClientConnPtr > cleanup_q;
+  void stop_();
+
+protected:
   /** server socket */
   int fd;
 
   virtual void setupConnection (int cfd);
 
-  Server (Layer3 * l3, Trace * tr);
-public:
-  virtual ~Server ();
+  bool setup();
+  void start();
+  void stop();
 
-  virtual bool init () = 0;
   /** deregister client connection */
-  bool deregister (ClientConnection * con);
+  void deregister (ClientConnPtr con);
 };
+
+typedef std::shared_ptr<NetServer> NetServerPtr;
 
 #endif

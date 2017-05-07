@@ -7,3 +7,9 @@
 /*.debhelper
 /*.substvars
 /files
+/knxd.install
+/knxd.service
+/knxd.socket
+/autoreconf.after
+/autoreconf.before
+/debhelper-build-stamp

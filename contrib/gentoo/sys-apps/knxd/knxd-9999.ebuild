@@ -7,30 +7,27 @@
 
 EAPI="5"
 
-inherit eutils autotools git-2
+inherit eutils autotools git-2 user
 
 DESCRIPTION="Provides an interface to the EIB / KNX bus (latest git)"
-HOMEPAGE="https://github.com/Makki1/knxd"
+HOMEPAGE="https://github.com/knxd/knxd"
 
 LICENSE="GPL-2"
 SLOT="9999"
 KEYWORDS=""
-IUSE="eibd ft12 pei16s tpuarts eibnetip eibnetiptunnel eibnetipserver usb groupcache java ncn5120"
+IUSE="eibd ft12 tpuarts eibnetip eibnetiptunnel eibnetipserver usb groupcache java ncn5120 dummy"
 
-DEPEND="dev-libs/pthsem"
+DEPEND="usb? ( dev-libs/libusb )"
 
-EGIT_REPO_URI="https://github.com/Makki1/knxd.git"
+EGIT_REPO_URI="https://github.com/knxd/knxd.git"
 
 src_prepare() {
-	eautoreconf || die "eautotooling failed"
+    eautoreconf || die "eautotooling failed"
 }
 
 src_configure() {
-#  works for me with the pth tests
-#        --without-pth-test \
     econf \
         $(use_enable ft12) \
-        $(use_enable pei16s) \
         $(use_enable tpuarts) \
         $(use_enable eibnetip) \
         $(use_enable eibnetiptunnel) \
@@ -43,15 +40,22 @@ src_configure() {
 }
 
 src_compile() {
-	emake || die "build of knxd failed"
+    emake || die "build of knxd failed"
 }
 
 src_install() {
-	emake DESTDIR="${D}" install
+    emake DESTDIR="${D}" install
 
-	einfo "Installing init-script and config"
+    einfo "Installing init-script and config"
 
-	sed -e "s|@SLOT@|${SLOT}|g" \
-               "${FILESDIR}/${PN}.init" | newinitd - ${PN}-${SLOT}
+    sed -e "s|@SLOT@|${SLOT}|g" \
+           "${FILESDIR}/${PN}.init" | newinitd - ${PN}-${SLOT}
 
+    sed -e "s|@SLOT@|${SLOT}|g" \
+           "${FILESDIR}/${PN}.confd" | newconfd - ${PN}-${SLOT}
+}
+
+pkg_setup() {
+	enewgroup knxd
+	enewuser knxd -1 -1 -1 "knxd"
 }

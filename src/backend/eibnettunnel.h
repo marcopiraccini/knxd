@@ -20,55 +20,68 @@
 #ifndef EIBNET_TUNNEL_H
 #define EIBNET_TUNNEL_H
 
-#include "layer2.h"
+#include "link.h"
 #include "eibnetip.h"
 
-class EIBNetIPTunnel:public Layer2Interface, private Thread
+DRIVER(EIBNetIPTunnel,ipt)
 {
-  Trace *t;
   EIBNetIPSocket *sock;
   struct sockaddr_in caddr;
   struct sockaddr_in daddr;
   struct sockaddr_in saddr;
   struct sockaddr_in raddr;
-  pth_sem_t insignal;
-  pth_sem_t outsignal;
-  pth_event_t getwait;
-  Queue < CArray > inqueue;
-  Queue < LPDU * >outqueue;
-  int mode;
-  int vmode;
-  int dataport;
+
+  CArray out;
   bool NAT;
-  bool noqueue;
-  int support_busmonitor;
-  int connect_busmonitor;
+  bool monitor;
+  std::string dest;
+  uint16_t port;
+  uint16_t sport;
+  std::string srcip;
+  uint16_t dataport;
 
-  void Run (pth_sem_t * stop);
+// main loop internal vars
+  int channel = -1;
+  int mod = 0;
+  int rno = 0;
+  int sno = 0;
+  int heartbeat = 0;
+  int heartbeat_time;
+  int heartbeat_limit;
+  int retry = 0;
+
+  ev::timer timeout; void timeout_cb(ev::timer &w, int revents);
+  ev::timer conntimeout; void conntimeout_cb(ev::timer &w, int revents);
+  ev::async trigger; void trigger_cb(ev::async &w, int revents);
+  
+  bool support_busmonitor;
+  bool connect_busmonitor;
+  void read_cb(EIBNetIPPacket *p);
+  void error_cb();
+
+  inline EIBnet_ConnectRequest get_creq() { 
+    EIBnet_ConnectRequest creq;
+
+    creq.nat = saddr.sin_addr.s_addr == 0;
+    creq.caddr = saddr;
+    creq.daddr = saddr;
+    creq.CRI.resize (3);
+    creq.CRI[0] = 0x04;
+    creq.CRI[1] = 0x02;
+    creq.CRI[2] = 0x00;
+    return creq;
+  } 
+
 public:
-  EIBNetIPTunnel (const char *dest, int port, int sport, const char *srcip,
-                  int dataport, int flags, Trace * tr);
+  EIBNetIPTunnel (const LinkConnectPtr_& c, IniSectionPtr& s);
   virtual ~EIBNetIPTunnel ();
-  bool init ();
+  bool setup();
+  void start();
+  void stop();
+  void is_stopped();
+  void restart();
 
-  void Send_L_Data (LPDU * l);
-  LPDU *Get_L_Data (pth_event_t stop);
-
-  bool addAddress (eibaddr_t addr);
-  bool addGroupAddress (eibaddr_t addr);
-  bool removeAddress (eibaddr_t addr);
-  bool removeGroupAddress (eibaddr_t addr);
-
-  bool enterBusmonitor ();
-  bool leaveBusmonitor ();
-
-  bool openVBusmonitor ();
-  bool closeVBusmonitor ();
-
-  bool Open ();
-  bool Close ();
-  bool Connection_Lost ();
-  bool Send_Queue_Empty ();
+  void send_L_Data (LDataPtr  l);
 };
 
 

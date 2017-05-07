@@ -20,63 +20,62 @@
 #ifndef EIB_USB_EMI_H
 #define EIB_USB_EMI_H
 
-#include "layer2.h"
+#include "link.h"
 #include "lowlevel.h"
+#include "emi_common.h"
 
-/** USBConverterInterface */
-class USBConverterInterface:public LowLevelDriverInterface
+/*
+ * The driver stack is: USB driver > [C]EMI[12] wrapper > USBConverterInterface > USBLowLevelDriver
+ */
+
+/** The USBConverterInterface's job is to add the appropriate USB header to
+ * the [C]EMI[12] frame on sending / remove that from incoming data
+ */
+class USBConverterInterface : public LowLevelFilter
 {
-  Trace *t;
-  LowLevelDriverInterface *i;
-  EMIVer v;
 public:
-  USBConverterInterface (LowLevelDriverInterface * iface, Trace * tr,
-                          EMIVer ver);
+  USBConverterInterface (LowLevelIface* p, IniSectionPtr& s);
   virtual ~USBConverterInterface ();
-  bool init ();
 
-  void Send_Packet (CArray l);
-  bool Send_Queue_Empty ();
-  pth_sem_t *Send_Queue_Empty_Cond ();
-  CArray *Get_Packet (pth_event_t stop);
+  bool setup (DriverPtr master);
+  //void start ();
+  //void stop ();
 
-  void SendReset ();
-  bool Connection_Lost ();
+  void send_Data (CArray& l);
+  void recv_Data (CArray& l);
 
-  EMIVer getEMIVer ();
+  void send_Init();
+  void sendLocal_done_cb(bool success);
+
+  EMIVer version = vRaw;
 };
 
-LowLevelDriverInterface *initUSBDriver (LowLevelDriverInterface * i,
-					Trace * tr);
-
 /** USB backend */
-class USBLayer2Interface:public Layer2Interface
+DRIVER_(USBDriver,LowLevelAdapter,usb)
 {
-  /** EMI */
-  Layer2Interface *emi;
+  // for EMI version discovery
+  ev::timer timeout;
+  int cnt = 0;
+  void timeout_cb(ev::timer &w, int revents);
+  void xmit();
+  void recv(CArray *r1);
+  void recv_Data(CArray& c);
+  bool wait_make = false;
+  USBConverterInterface *usb_iface;
 
+  void sendLocal_done_cb(bool success);
 public:
-  USBLayer2Interface (LowLevelDriverInterface * i, Trace * tr, int flags);
-  ~USBLayer2Interface ();
-  bool init ();
+  EMIVer version = vUnknown;
 
-  void Send_L_Data (LPDU * l);
-  LPDU *Get_L_Data (pth_event_t stop);
+  USBDriver (const LinkConnectPtr_& c, IniSectionPtr& s);
+  bool setup();
+  //void start();
+  //void stop();
+  void started();
+  void stopped();
+  void do_send_Next();
+  bool make_EMI();
 
-  bool addAddress (eibaddr_t addr);
-  bool addGroupAddress (eibaddr_t addr);
-  bool removeAddress (eibaddr_t addr);
-  bool removeGroupAddress (eibaddr_t addr);
-
-  bool enterBusmonitor ();
-  bool leaveBusmonitor ();
-  bool openVBusmonitor ();
-  bool closeVBusmonitor ();
-
-  bool Open ();
-  bool Close ();
-  bool Connection_Lost ();
-  bool Send_Queue_Empty ();
 };
 
 #endif
